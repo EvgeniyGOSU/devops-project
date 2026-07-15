@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-cluster-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  k8s-cluster.json: |
+    {
+      "dashboard": {
+        "title": "Kubernetes Cluster Monitoring",
+        "uid": "k8s-cluster",
+        "panels": []
+      }
+    }
