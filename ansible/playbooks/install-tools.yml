@@ -1,0 +1,64 @@
+---
+- name: Install additional tools on cluster
+  hosts: localhost
+  connection: local
+  vars:
+    ansible_become: no
+    kubeconfig_path: "{{ lookup('env', 'HOME') }}/.kube/config"
+  
+  tasks:
+    - name: Install Helm repositories
+      shell: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        helm repo add gitea https://dl.gitea.io/charts
+        helm repo update
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+        HTTP_PROXY: http://127.0.0.1:8080
+        HTTPS_PROXY: http://127.0.0.1:8080
+
+    - name: Install Metrics Server
+      shell: |
+        kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+        kubectl patch deployment metrics-server -n kube-system --type='json' -p='[
+          {"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"},
+          {"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-preferred-address-types=InternalIP,Hostname"}
+        ]'
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Install NGINX Ingress Controller
+      shell: |
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace \
+          --set controller.service.type=NodePort \
+          --set controller.service.nodePorts.http=30070 \
+          --set controller.service.nodePorts.https=30071 \
+          --wait
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Install Prometheus Stack
+      shell: |
+        helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+          --namespace monitoring --create-namespace \
+          --set prometheus.service.type=NodePort \
+          --set prometheus.service.nodePort=30090 \
+          --set grafana.service.type=NodePort \
+          --set grafana.service.nodePort=30091 \
+          --set grafana.adminPassword=admin123 \
+          --wait
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Display access information
+      debug:
+        msg: |
+          ========================================
+          Additional tools installed!
+          ========================================
+          Grafana:    http://192.168.29.137:30091 (admin/admin123)
+          Prometheus: http://192.168.29.137:30090
+          Ingress:    http://192.168.29.137:30070
+          ========================================

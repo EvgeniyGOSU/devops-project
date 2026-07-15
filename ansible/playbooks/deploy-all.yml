@@ -1,6 +1,6 @@
 ---
 # ============================================================
-# Полный деплой Kubernetes кластера
+# Полный деплой Kubernetes кластера и всех компонентов
 # ============================================================
 
 - name: 1. Setup containerd on all nodes
@@ -18,7 +18,10 @@
 - name: 5. Install Flannel CNI
   import_playbook: install-cni.yml
 
-- name: 6. Final Verification
+- name: 6. Install additional tools (optional)
+  import_playbook: install-tools.yml
+
+- name: 7. Final Verification
   hosts: localhost
   connection: local
   gather_facts: no
@@ -39,7 +42,15 @@
       debug:
         msg: |
           ====================================
-          🎉 Kubernetes Cluster Status
+          🎉 Kubernetes Cluster Ready!
           ====================================
           {{ nodes_status.stdout }}
+          
+          🌐 Access URLs:
+          ArgoCD:      https://192.168.29.137:30080
+          Uptime Kuma: http://192.168.29.137:30081
+          Gitea:       http://192.168.29.137:30083
+          Grafana:     http://192.168.29.137:30091 (admin/admin123)
+          Prometheus:  http://192.168.29.137:30090
+          Ingress:     http://192.168.29.137:30070
           ====================================
