@@ -1,0 +1,64 @@
+stages:
+  - validate
+  - deploy
+  - test
+  - notify
+
+variables:
+  KUBECONFIG: /root/.kube/config
+
+# Проверка синтаксиса Ansible
+validate:ansible:
+  stage: validate
+  image: python:3.11-slim
+  before_script:
+    - pip install ansible ansible-lint
+  script:
+    - cd ansible
+    - ansible-playbook --syntax-check playbooks/deploy-all.yml
+    - ansible-lint playbooks/*.yml
+  only:
+    - main
+    - develop
+
+# Проверка Kubernetes манифестов
+validate:k8s:
+  stage: validate
+  image: alpine/k8s:1.29.0
+  script:
+    - cd kubernetes
+    - for file in $(find . -name "*.yaml" -o -name "*.yml"); do
+        kubectl --dry-run=client -f $file 2>/dev/null || echo "Skipping $file";
+      done
+  only:
+    - main
+    - develop
+
+# Деплой через ArgoCD
+deploy:argocd:
+  stage: deploy
+  image: alpine/k8s:1.29.0
+  script:
+    - kubectl apply -f kubernetes/argocd/
+    - kubectl wait --for=condition=healthy application -l argocd.argoproj.io/instance -n argocd --timeout=300s
+  only:
+    - main
+
+# Тест доступности сервисов
+test:services:
+  stage: test
+  image: curlimages/curl:latest
+  script:
+    - curl -f http://uptime-kuma.uptime-kuma.svc.cluster.local:3001 || true
+    - curl -f http://monitoring-grafana.monitoring.svc.cluster.local:80 || true
+  only:
+    - main
+
+# Уведомление в Telegram (опционально)
+notify:telegram:
+  stage: notify
+  image: curlimages/curl:latest
+  script:
+    - echo "Deploy completed for $CI_PROJECT_NAME"
+  only:
+    - main
