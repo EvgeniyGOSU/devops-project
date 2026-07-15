@@ -1,0 +1,45 @@
+---
+# ============================================================
+# Полный деплой Kubernetes кластера
+# ============================================================
+
+- name: 1. Setup containerd on all nodes
+  import_playbook: setup-containerd.yml
+
+- name: 2. Initialize Kubernetes Master
+  import_playbook: init-cluster.yml
+
+- name: 3. Get kubeconfig
+  import_playbook: get-kubeconfig.yml
+
+- name: 4. Join Worker to Cluster
+  import_playbook: join-worker.yml
+
+- name: 5. Install Flannel CNI
+  import_playbook: install-cni.yml
+
+- name: 6. Final Verification
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    ansible_become: no
+  
+  tasks:
+    - name: Wait for all nodes to be Ready
+      shell: |
+        export KUBECONFIG=~/.kube/config
+        kubectl wait --for=condition=ready nodes --all --timeout=120s 2>&1
+        kubectl get nodes -o wide 2>&1
+      register: nodes_status
+      ignore_errors: yes
+      become: no
+
+    - name: Display final cluster status
+      debug:
+        msg: |
+          ====================================
+          🎉 Kubernetes Cluster Status
+          ====================================
+          {{ nodes_status.stdout }}
+          ====================================

@@ -1,0 +1,51 @@
+---
+- name: Initialize Kubernetes Master
+  hosts: master
+  become: yes
+  environment:
+    http_proxy: "{{ proxy_env.http_proxy }}"
+    https_proxy: "{{ proxy_env.https_proxy }}"
+    no_proxy: "{{ proxy_env.no_proxy }}"
+  
+  tasks:
+    - name: Check if cluster is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: kubeadm_conf
+
+    - name: Pull required images
+      shell: |
+        kubeadm config images pull \
+          --image-repository=registry.k8s.io
+      when: not kubeadm_conf.stat.exists
+
+    - name: Initialize K8s cluster
+      shell: |
+        kubeadm init \
+          --pod-network-cidr=10.244.0.0/16 \
+          --apiserver-advertise-address=192.168.29.137
+      register: kubeadm_init
+      when: not kubeadm_conf.stat.exists
+      
+    - name: Create .kube directory
+      file:
+        path: /home/k8s/.kube
+        state: directory
+        owner: k8s
+        group: k8s
+
+    - name: Copy admin.conf to user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/k8s/.kube/config
+        remote_src: yes
+        owner: k8s
+        group: k8s
+
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command
+
+    - name: Display join command
+      debug:
+        msg: "Join command: {{ join_command.stdout }}"

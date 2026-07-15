@@ -1,0 +1,40 @@
+---
+- name: Install Flannel CNI
+  hosts: master
+  become: yes
+  environment:
+    http_proxy: "{{ proxy_env.http_proxy }}"
+    https_proxy: "{{ proxy_env.https_proxy }}"
+    no_proxy: "{{ proxy_env.no_proxy }}"
+  
+  tasks:
+    - name: Check if Flannel is already installed
+      shell: kubectl get pods -n kube-flannel 2>/dev/null | grep -c Running || echo "0"
+      environment:
+        KUBECONFIG: /home/k8s/.kube/config
+      register: flannel_check
+      changed_when: false
+
+    - name: Download Flannel manifest
+      get_url:
+        url: https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+        dest: /tmp/kube-flannel.yml
+        validate_certs: no
+      when: flannel_check.stdout == "0"
+
+    - name: Apply Flannel
+      shell: kubectl apply -f /tmp/kube-flannel.yml
+      environment:
+        KUBECONFIG: /home/k8s/.kube/config
+      register: flannel_result
+      when: flannel_check.stdout == "0"
+
+    - name: Show Flannel installation result
+      debug:
+        var: flannel_result.stdout_lines
+      when: flannel_check.stdout == "0"
+
+    - name: Flannel already installed
+      debug:
+        msg: "Flannel CNI is already installed"
+      when: flannel_check.stdout != "0"

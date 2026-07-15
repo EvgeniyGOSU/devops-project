@@ -1,0 +1,35 @@
+---
+- name: Reset Kubernetes Cluster
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Reset kubeadm on all nodes
+      shell: kubeadm reset -f
+      ignore_errors: yes
+
+    - name: Remove Kubernetes directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /var/lib/kubelet
+        - /var/lib/etcd
+        - /etc/cni/net.d
+        - $HOME/.kube/config
+
+    - name: Clean network interfaces
+      shell: |
+        ip link delete cni0 2>/dev/null
+        ip link delete flannel.1 2>/dev/null
+      ignore_errors: yes
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+
+    - name: Display reset message
+      debug:
+        msg: "Cluster has been reset. Run deploy-all.yml to reinstall."

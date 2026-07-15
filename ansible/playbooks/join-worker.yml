@@ -1,0 +1,61 @@
+---
+- name: Get join command from master
+  hosts: master
+  become: yes
+  environment:
+    http_proxy: "{{ proxy_env.http_proxy }}"
+    https_proxy: "{{ proxy_env.https_proxy }}"
+    no_proxy: "{{ proxy_env.no_proxy }}"
+  
+  tasks:
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command
+
+    - name: Save join command to file
+      copy:
+        content: "{{ join_command.stdout }}"
+        dest: /tmp/k8s_join_command.sh
+        mode: '0755'
+
+    - name: Fetch join command to local
+      fetch:
+        src: /tmp/k8s_join_command.sh
+        dest: /tmp/k8s_join_command.sh
+        flat: yes
+
+- name: Check and Join Worker to Cluster
+  hosts: workers
+  become: yes
+  environment:
+    http_proxy: "{{ proxy_env.http_proxy }}"
+    https_proxy: "{{ proxy_env.https_proxy }}"
+    no_proxy: "{{ proxy_env.no_proxy }}"
+  
+  tasks:
+    - name: Check if node is already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Copy join script to worker
+      copy:
+        src: /tmp/k8s_join_command.sh
+        dest: /tmp/k8s_join_command.sh
+        mode: '0755'
+      when: not kubelet_conf.stat.exists
+
+    - name: Join cluster
+      shell: bash /tmp/k8s_join_command.sh
+      register: join_result
+      when: not kubelet_conf.stat.exists
+
+    - name: Show join result
+      debug:
+        var: join_result.stdout_lines
+      when: not kubelet_conf.stat.exists
+
+    - name: Node already joined
+      debug:
+        msg: "Worker node {{ inventory_hostname }} is already part of the cluster"
+      when: kubelet_conf.stat.exists

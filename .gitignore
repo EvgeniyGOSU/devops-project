@@ -1,0 +1,35 @@
+# Ansible
+*.retry
+ansible/inventory/hosts.yml.bak
+tmp/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# Kubernetes kubeconfig
+.kube/
+kubeconfig
+
+# GitLab
+gitlab/config/
+gitlab/logs/
+gitlab/data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SSH keys
+*.pem
+*.key
+id_*
+!id_*.pub

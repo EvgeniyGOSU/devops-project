@@ -1,0 +1,33 @@
+---
+- name: Configure proxy for containerd
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Create containerd service directory
+      file:
+        path: /etc/systemd/system/containerd.service.d
+        state: directory
+        mode: '0755'
+
+    - name: Add proxy configuration for containerd
+      copy:
+        dest: /etc/systemd/system/containerd.service.d/http-proxy.conf
+        content: |
+          [Service]
+          Environment="HTTP_PROXY=http://127.0.0.1:8080"
+          Environment="HTTPS_PROXY=http://127.0.0.1:8080"
+          Environment="NO_PROXY=localhost,127.0.0.1,10.96.0.0/12,10.244.0.0/16,192.168.0.0/16,.svc,.cluster.local"
+        mode: '0644'
+
+    - name: Reload systemd and restart containerd
+      systemd:
+        daemon_reload: yes
+        name: containerd
+        state: restarted
+
+    - name: Wait for containerd
+      wait_for:
+        path: /var/run/containerd/containerd.sock
+        state: present
+        timeout: 30
